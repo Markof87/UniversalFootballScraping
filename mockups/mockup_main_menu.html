@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Match Analysis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            background: #0a192f;
+            color: #ccd6f6;
+        }
+
+        .sidebar {
+            width: 250px;
+            background: #112240;
+            color: white;
+            height: 100vh;
+            padding: 20px;
+            box-shadow: 4px 0 10px rgba(0, 0, 0, 0.3);
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .sidebar h2 {
+            text-align: center;
+            font-weight: 700;
+            color: #64ffda;
+            margin-bottom: 20px;
+        }
+
+        .menu {
+            list-style: none;
+            padding: 0;
+        }
+
+        .menu li {
+            padding: 15px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            text-transform: uppercase;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .menu li:hover {
+            background: #3b82f6;
+            transform: scale(1.05);
+        }
+
+        .content {
+            flex-grow: 1;
+            padding: 20px;
+            background: #0a192f;
+            margin-left: 270px;
+            transition: margin-left 0.3s ease;
+            margin-top: 50px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #64ffda;
+        }
+
+        p {
+            color: #8892b0;
+        }
+
+        .lang-toggle {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            border-radius: 8px;
+            padding: 5px;
+        }
+
+        .lang-toggle img {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .lang-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-toggle {
+            display: none;
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: #64ffda;
+            z-index: 1000;
+        }
+
+        .menu-toggle span {
+            display: block;
+            width: 30px;
+            height: 4px;
+            background-color: #64ffda;
+            margin: 6px 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .menu-toggle.open span:nth-child(1) {
+            transform: rotate(45deg);
+            position: relative;
+            top: 9px;
+        }
+
+        .menu-toggle.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .menu-toggle.open span:nth-child(3) {
+            transform: rotate(-45deg);
+            position: relative;
+            top: -10px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                /* Sidebar hidden by default */
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+                /* Show sidebar */
+            }
+
+            .content {
+                margin-left: 0;
+            }
+
+            .menu-toggle {
+                display: block;
+            }
+        }
+    </style>
+</head>
+
+<body onload="setSavedLanguage()">
+    <!-- Hamburger Menu Toggle -->
+    <button class="menu-toggle" onclick="toggleMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+
+    <!-- Language Toggle Button -->
+    <button class="lang-toggle" onclick="toggleLanguage()">
+        <img id="lang-flag" src="https://flagcdn.com/w40/gb.png" alt="Language Flag">
+    </button>
+
+    <!-- Sidebar Menu -->
+    <div class="sidebar" id="sidebar">
+        <h2 id="title">Match Analysis</h2>
+        <ul class="menu">
+            <li onclick="loadContent('teams')" id="menu-teams">Teams</li>
+            <li onclick="loadContent('players')" id="menu-players">Players</li>
+            <li onclick="loadContent('matches')" id="menu-matches">Matches</li>
+            <li onclick="loadContent('positional')" id="menu-positional">Positional Data</li>
+            <li onclick="loadContent('statistics')" id="menu-statistics">Statistics</li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="content" id="content">
+        <h1 id="welcome">Welcome to the Football Match Analysis Dashboard</h1>
+        <p id="select">Select a section from the menu to begin.</p>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('content').classList.toggle('open');
+            document.querySelector('.menu-toggle').classList.toggle('open');
+        }
+
+        function toggleLanguage() {
+            let currentLang = localStorage.getItem('language') || 'en';
+            let newLang = currentLang === 'en' ? 'it' : 'en';
+            localStorage.setItem('language', newLang);
+            setLanguage(newLang);
+        }
+
+        function setSavedLanguage() {
+            let savedLang = localStorage.getItem('language') || 'en';
+            setLanguage(savedLang);
+        }
+
+        function setLanguage(lang) {
+            const translations = {
+                en: {
+                    title: "Match Analysis",
+                    menuTeams: "Teams",
+                    menuPlayers: "Players",
+                    menuMatches: "Matches",
+                    menuPositional: "Positional Data",
+                    menuStatistics: "Statistics",
+                    welcome: "Welcome to the Football Match Analysis Dashboard",
+                    select: "Select a section from the menu to begin.",
+                    flag: "https://flagcdn.com/w40/gb.png"
+                },
+                it: {
+                    title: "Analisi delle Partite",
+                    menuTeams: "Squadre",
+                    menuPlayers: "Giocatori",
+                    menuMatches: "Partite",
+                    menuPositional: "Dati Posizionali",
+                    menuStatistics: "Statistiche",
+                    welcome: "Benvenuto nella Dashboard di Analisi delle Partite",
+                    select: "Seleziona una sezione dal menu per iniziare.",
+                    flag: "https://flagcdn.com/w40/it.png"
+                }
+            };
+            document.getElementById("title").innerText = translations[lang].title;
+            document.getElementById("menu-teams").innerText = translations[lang].menuTeams;
+            document.getElementById("menu-players").innerText = translations[lang].menuPlayers;
+            document.getElementById("menu-matches").innerText = translations[lang].menuMatches;
+            document.getElementById("menu-positional").innerText = translations[lang].menuPositional;
+            document.getElementById("menu-statistics").innerText = translations[lang].menuStatistics;
+            document.getElementById("welcome").innerText = translations[lang].welcome;
+            document.getElementById("select").innerText = translations[lang].select;
+            document.getElementById("lang-flag").src = translations[lang].flag;
+        }
+
+        // Load content dynamically (for demonstration)
+        function loadContent(section) {
+            document.getElementById("select").innerText = "You selected: " + section;
+        }
+    </script>
+
+    <iframe src="http://localhost:5000" width="65%" height="600px" style="margin: 0 auto;"></iframe>
+</body>
+
+</html>
