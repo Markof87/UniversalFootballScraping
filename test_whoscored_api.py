@@ -117,11 +117,9 @@ def getMatchData(url, minimize_window=True):
     script_content = re.sub(r"[\n\t]*", "", script_content)
     script_content = script_content[script_content.index("matchId"):script_content.rindex("}")]
 
-
     # this will give script content in list form 
     script_content_list = list(filter(None, script_content.strip().split(',            ')))
     metadata = script_content_list.pop(1) 
-
 
     # string format to json format
     match_data = json.loads(metadata[metadata.index('{'):])
@@ -129,7 +127,6 @@ def getMatchData(url, minimize_window=True):
     values = [item[item.index(':')+1:].strip() for item in script_content_list]
     for key,val in zip(keys, values):
         match_data[key] = json.loads(val)
-
 
     # get other details about the match
     region = driver.find_element(By.XPATH, '//*[@id="breadcrumb-nav"]/span[1]').text
@@ -144,18 +141,34 @@ def getMatchData(url, minimize_window=True):
     else:
         print('Getting more than 3 types of information about the competition.')
 
-    match_data['region'] = region
-    match_data['league'] = league
-    match_data['season'] = season
-    match_data['competitionType'] = competition_type
-    match_data['competitionStage'] = competition_stage
-
+    #match_data['region'] = region
+    #match_data['league'] = league
+    #match_data['season'] = season
+    #match_data['competitionType'] = competition_type
+    #match_data['competitionStage'] = competition_stage
 
     # sort match_data dictionary alphabetically
     match_data = OrderedDict(sorted(match_data.items()))
-    match_data = dict(match_data)
+    # Trova la lunghezza massima tra i valori
+    max_length = max(len(v) if isinstance(v, list) else 1 for v in match_data.values())
+
+    # Normalizza i dati
+    for key, value in match_data.items():
+        if isinstance(value, list):
+            # Riempi le liste più corte con None
+            match_data[key] = value + [None] * (max_length - len(value))
+        else:
+            # Trasforma i valori singoli in liste
+            match_data[key] = [value] * max_length
+
+    # Crea il DataFrame
+    df_match_data = pd.DataFrame(match_data)
+
+    # Salva il DataFrame in un file CSV
+    df_match_data.to_csv('match_data.csv', index=False)
+
     driver.close()
         
     return match_data
 
-getLeagueUrls()
+getMatchData(main_url + 'matches/1874074/live/international-world-cup-qualification-uefa-2025-2026-england-latvia')
