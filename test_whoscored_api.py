@@ -1,10 +1,13 @@
+import warnings
 import pandas as pd
 import time
 import re
 import json
+import numpy as np
+from mplsoccer.pitch import Pitch, VerticalPitch
+import matplotlib.pyplot as plt
 pd.options.mode.chained_assignment = None
 from bs4 import BeautifulSoup as soup
-from collections import OrderedDict
 try:
     from tqdm import trange
 except ModuleNotFoundError:
@@ -141,34 +144,188 @@ def getMatchData(url, minimize_window=True):
     else:
         print('Getting more than 3 types of information about the competition.')
 
-    #match_data['region'] = region
-    #match_data['league'] = league
-    #match_data['season'] = season
-    #match_data['competitionType'] = competition_type
-    #match_data['competitionStage'] = competition_stage
+    match_data['region'] = region
+    match_data['league'] = league
+    match_data['season'] = season
+    match_data['competitionType'] = competition_type
+    match_data['competitionStage'] = competition_stage
 
-    # sort match_data dictionary alphabetically
-    match_data = OrderedDict(sorted(match_data.items()))
-    # Trova la lunghezza massima tra i valori
-    max_length = max(len(v) if isinstance(v, list) else 1 for v in match_data.values())
+    events_ls = createEventsDF(match_data)
 
-    # Normalizza i dati
-    for key, value in match_data.items():
-        if isinstance(value, list):
-            # Riempi le liste più corte con None
-            match_data[key] = value + [None] * (max_length - len(value))
-        else:
-            # Trasforma i valori singoli in liste
-            match_data[key] = [value] * max_length
+    pass_events = [event for event in match_data["events"] if event["type"]["displayName"] == "Pass"]
+    with open("passes.json", "w", encoding="utf-8") as f:
+        json.dump(match_data, f, ensure_ascii=False, indent=4)
 
-    # Crea il DataFrame
-    df_match_data = pd.DataFrame(match_data)
+    team = 'England'
+    teamId = 345
+    opponent = 'Latvia'
 
-    # Salva il DataFrame in un file CSV
-    df_match_data.to_csv('match_data.csv', index=False)
+    getTeamTotalPasses(events_ls, teamId, team, opponent, pitch_color='#000000')
 
     driver.close()
         
     return match_data
+
+def getTeamTotalPasses(events_df, teamId, team, opponent, pitch_color):
+    """
+    
+
+    Parameters
+    ----------
+    events_df : DataFrame of all events.
+    
+    teamId : ID of the team, the passes of which are required.
+    
+    team : Name of the team, the passes of which are required.
+    
+    opponent : Name of opponent team.
+    
+    pitch_color : color of the pitch.
+
+
+    Returns
+    -------
+    Pitch Plot.
+    """
+    
+    # Get Total Passes
+    passes_df = events_df.loc[events_df['type']=='Pass'].reset_index(drop=True)
+    
+    # Get Team Passes
+    team_passes = passes_df.loc[passes_df['teamId'] == teamId]
+        
+    successful_passes = team_passes.loc[team_passes['outcomeType']=='Successful'].reset_index(drop=True)
+    unsuccessful_passes = team_passes.loc[team_passes['outcomeType']=='Unsuccessful'].reset_index(drop=True)
+            
+    # Setup the pitch
+    pitch = Pitch(pitch_type='statsbomb', pitch_color=pitch_color, line_color='#c7d5cc')
+    fig, ax = pitch.draw(constrained_layout=True, tight_layout=False)
+    # fig.set_size_inches(14, 10)
+    
+    # Plot the completed passes
+    pitch.arrows(successful_passes.x/100*120, 80-successful_passes.y/100*80,
+                 successful_passes.endX/100*120, 80-successful_passes.endY/100*80, width=1,
+                 headwidth=10, headlength=10, color='#ad993c', ax=ax, label='Completed')
+    
+    # Plot the other passes
+    pitch.arrows(unsuccessful_passes.x/100*120, 80-unsuccessful_passes.y/100*80,
+                 unsuccessful_passes.endX/100*120, 80-unsuccessful_passes.endY/100*80, width=1,
+                 headwidth=6, headlength=5, headaxislength=12, color='#ba4f45', ax=ax, label='Blocked')
+    
+    # setup the legend
+    ax.legend(facecolor=pitch_color, handlelength=5, edgecolor='None', fontsize=8, loc='upper left', shadow=True, labelcolor='white')
+    
+    # Set the title
+    fig.suptitle(f'{team} Passes vs {opponent}', y=1, fontsize=15)
+    
+    
+    # Set the subtitle
+    ax.set_title('Data : Whoscored/Opta', fontsize=8, loc='right', fontstyle='italic', fontweight='bold')
+    
+    print("sono qui")
+    # Set the figure facecolor
+    
+    fig.set_facecolor(pitch_color)
+    plt.show()
+
+def createEventsDF(data):
+    events = data['events']
+    for event in events:
+        event.update({'matchId' : data['matchId'],
+                        'startDate' : data['startDate'],
+                        'startTime' : data['startTime'],
+                        'score' : data['score'],
+                        'ftScore' : data['ftScore'],
+                        'htScore' : data['htScore'],
+                        'etScore' : data['etScore'],
+                        'venueName' : data['venueName'],
+                        'maxMinute' : data['maxMinute']})
+    events_df = pd.DataFrame(events)
+
+    # clean period column
+    events_df['period'] = pd.json_normalize(events_df['period'])['displayName']
+
+    # clean type column
+    events_df['type'] = pd.json_normalize(events_df['type'])['displayName']
+
+    # clean outcomeType column
+    events_df['outcomeType'] = pd.json_normalize(events_df['outcomeType'])['displayName']
+
+    print(events_df.columns)
+
+    # clean outcomeType column
+    try:
+        x = events_df['cardType'].fillna({i: {} for i in events_df.index})
+        events_df['cardType'] = pd.json_normalize(x)['displayName'].fillna(False)
+    except KeyError:
+        events_df['cardType'] = False
+
+    eventTypeDict = data['matchCentreEventTypeJson']  
+    events_df['satisfiedEventsTypes'] = events_df['satisfiedEventsTypes'].apply(lambda x: [list(eventTypeDict.keys())[list(eventTypeDict.values()).index(event)] for event in x])
+
+    # clean qualifiers column
+    try:
+        for i in events_df.index:
+            row = events_df.loc[i, 'qualifiers'].copy()
+            if len(row) != 0:
+                for irow in range(len(row)):
+                    row[irow]['type'] = row[irow]['type']['displayName']
+    except TypeError:
+        pass
+
+
+    # clean isShot column
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        if 'isShot' in events_df.columns:
+            events_df['isTouch'] = events_df['isTouch'].replace(np.nan, False).infer_objects(copy=False)
+        else:
+            events_df['isShot'] = False
+
+        # clean isGoal column
+        if 'isGoal' in events_df.columns:
+            events_df['isGoal'] = events_df['isGoal'].replace(np.nan, False).infer_objects(copy=False)
+        else:
+            events_df['isGoal'] = False
+
+    # add player name column
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        events_df.loc[events_df.playerId.notna(), 'playerId'] = events_df.loc[events_df.playerId.notna(), 'playerId'].astype(int).astype(str)    
+    player_name_col = events_df.loc[:, 'playerId'].map(data['playerIdNameDictionary']) 
+    events_df.insert(loc=events_df.columns.get_loc("playerId")+1, column='playerName', value=player_name_col)
+
+    # add home/away column
+    h_a_col = events_df['teamId'].map({data['home']['teamId']:'h', data['away']['teamId']:'a'})
+    events_df.insert(loc=events_df.columns.get_loc("teamId")+1, column='h_a', value=h_a_col)
+
+
+    # adding shot body part column
+    events_df['shotBodyType'] =  np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        for i in events_df.loc[events_df.isShot==True].index:
+            for j in events_df.loc[events_df.isShot==True].qualifiers.loc[i]:
+                if j['type'] == 'RightFoot' or j['type'] == 'LeftFoot' or j['type'] == 'Head' or j['type'] == 'OtherBodyPart':
+                    events_df.loc[i, 'shotBodyType'] = j['type']
+
+
+    # adding shot situation column
+    events_df['situation'] =  np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        for i in events_df.loc[events_df.isShot==True].index:
+            for j in events_df.loc[events_df.isShot==True].qualifiers.loc[i]:
+                if j['type'] == 'FromCorner' or j['type'] == 'SetPiece' or j['type'] == 'DirectFreekick':
+                    events_df.loc[i, 'situation'] = j['type']
+                if j['type'] == 'RegularPlay':
+                    events_df.loc[i, 'situation'] = 'OpenPlay' 
+
+    event_types = list(data['matchCentreEventTypeJson'].keys())
+    event_type_cols = pd.DataFrame({event_type: pd.Series([event_type in row for row in events_df['satisfiedEventsTypes']]) for event_type in event_types})
+    events_df = pd.concat([events_df, event_type_cols], axis=1)
+
+
+    return events_df
 
 getMatchData(main_url + 'matches/1874074/live/international-world-cup-qualification-uefa-2025-2026-england-latvia')
